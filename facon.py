@@ -7,7 +7,7 @@ subdivide_zones(gdf, area_m2=500000)
 Which splits polygons held in a GeoDataFrame towards the
 target area.
 
-version 0.0.2 - 2 Mar 2020
+version 0.0.3 - 11 Sep 2020
 '''
 
 import geopandas as gpd
@@ -25,7 +25,7 @@ from libpysal.cg.voronoi  import voronoi, voronoi_frames
 __version__ = '0.0.2'
 
 
-def _point_fill_poly(polygon, spacing_m2, seed):
+def _point_fill_poly(polygon, target_area_m2, points_per_cell, seed):
     """
     Returns a shapely MultiPoint object that fills the original polygon.
     
@@ -41,8 +41,10 @@ def _point_fill_poly(polygon, spacing_m2, seed):
     ----------
     polygon: Polygon
         the polygon to fill with points
-    spacing_m2 : int, optional
-        the approximate spacing of the randomly generated points (e.g. 1 per 100x100m)
+    target_area_m2: int
+        Target area for subdivisions in square meters
+    points_per_cell : int, optional
+        the approximate number of points that will be in each cluster
     seed : int, optional
         seed for reproducibility
     
@@ -51,12 +53,24 @@ def _point_fill_poly(polygon, spacing_m2, seed):
     clipped_multi_point : MultiPoint
         a shapely MultiPoint object clipped to the input polygon
     """
+    if seed is None:
+        seed = 42
     np.random.seed(seed)
 
-    # calculate the number of random points to generate - divides
-    # the area of the bounding box by the approximate spacing
+    if points_per_cell is None:
+        points_per_cell = 100
+
+    # calculate the number of random points to generate
+    # calcualtes the area of the bouding box
     minx, miny, maxx, maxy = polygon.bounds
-    num_points = int((maxx-minx)*(maxy-miny)/spacing_m2)
+    bounding_box_area = (maxx-minx)*(maxy-miny)
+
+    # calculates how many of the target_area cells would fill the bounding box
+    num_cells = bounding_box_area/target_area_m2
+
+    # multiplies that number by the number of points per cell to determine
+    # the total number of points to generate
+    num_points = int(num_cells*points_per_cell)
 
     # create x coordinates
     x = np.random.uniform(minx,maxx,num_points)
@@ -75,7 +89,7 @@ def _point_fill_poly(polygon, spacing_m2, seed):
     return clipped_multipoint
 
 
-def _create_cluster_centroids(polygon_, clipped_multipoint, area_m2, random_state=0):
+def _create_cluster_centroids(polygon_, clipped_multipoint, target_area_m2, random_state=0):
     '''
     Generate clusters from points in a polygon and return the cluster centroids
 
@@ -89,8 +103,8 @@ def _create_cluster_centroids(polygon_, clipped_multipoint, area_m2, random_stat
         the polygon to subdivide
     clipped_multipoint : MultiPoint
         the MultiPoint object that fills the polygon
-    area_m2 : int, optional
-        the cluster size to target in m2 (e.g. 1km2 - 1000000)
+    target_area_m2: int
+        Target area for subdivisions in square meters
     random_state : int
         set the random state for reproducibility
 
@@ -102,7 +116,7 @@ def _create_cluster_centroids(polygon_, clipped_multipoint, area_m2, random_stat
 
     # divide the area of the polygon by the target area to
     # determine the number of clusters (rounds to nearest whole number)
-    n_clusters = round(polygon_.area / area_m2)
+    n_clusters = round(polygon_.area / target_area_m2)
 
     # prevent calls with zero clusters
     if n_clusters < 1:
@@ -323,7 +337,7 @@ def _merge_fragments_to_polygons(fragments, polygons):
     return merged_polygons
 
 
-def _subdivide_polygon(idx, poly_, area_m2, voronoi_radius, spacing_m2, seed):
+def _subdivide_polygon(idx, poly_, target_area_m2, voronoi_radius, points_per_cell, seed):
     '''
     subdivide a polygon using k-means clustering and voronoi regions
     
@@ -331,10 +345,14 @@ def _subdivide_polygon(idx, poly_, area_m2, voronoi_radius, spacing_m2, seed):
     ----------
     poly_: Polygon
         the polygon to subdivide
-    area_m2: int
+    target_area_m2: int
         Target area for subdivisions in square meters
-    radius: int
+    voronoi_radius: int
         The radius that PySAL will use to approximate infinity
+    points_per_cell: int
+        The approximate number of points in each cluster
+    seed: int
+        A random number seed for reproducibility
 
     Returns
     -------
@@ -346,14 +364,17 @@ def _subdivide_polygon(idx, poly_, area_m2, voronoi_radius, spacing_m2, seed):
         raise TypeError ("'poly_ must be a single Shapely Polygon'")
     
     # If the input polygon is smaller than the threshold return it in a list
-    if poly_.area <= area_m2:
+    if poly_.area <= target_area_m2:
         return [poly_]
     
     # fill the polygon with a MultiPoint object
-    multipoint_ = _point_fill_poly(poly_, spacing_m2=spacing_m2, seed=seed)
+    multipoint_ = _point_fill_poly(poly_,
+                                   target_area_m2,
+                                   points_per_cell,
+                                   seed)
 
     # create cluster centroids
-    cluster_centroids_ = _create_cluster_centroids(poly_, multipoint_, area_m2=area_m2)
+    cluster_centroids_ = _create_cluster_centroids(poly_, multipoint_, target_area_m2)
 
     # if one cluster is returned
     if len(cluster_centroids_)<=1:
@@ -407,7 +428,7 @@ def _subdivide_polygon(idx, poly_, area_m2, voronoi_radius, spacing_m2, seed):
     return only_polygons
 
 
-def _subdivide_row(idx, row, target_area_m2, voronoi_radius, spacing_m2, seed):
+def _subdivide_row(idx, row, target_area_m2, voronoi_radius, points_per_cell, seed):
     '''
     Take a single GeoDataFrame row split its geometry, return a GDF of the result
     
@@ -417,8 +438,14 @@ def _subdivide_row(idx, row, target_area_m2, voronoi_radius, spacing_m2, seed):
         the id label of the row
     row : Series
         pandas series including geometry
-    area_m2 : integer
+    target_area_m2 : integer
         the targe size of the subdivided geometry
+    voronoi_radius: int
+        The radius that PySAL will use to approximate infinity
+    points_per_cell: int
+        The approximate number of points in each cluster
+    seed: int
+        A random number seed for reproducibility
     
     Returns
     -------
@@ -435,9 +462,19 @@ def _subdivide_row(idx, row, target_area_m2, voronoi_radius, spacing_m2, seed):
     if row['geometry'].type == 'MultiPolygon':
         polys_in = _explode_multipolygon(row['geometry'])
         for poly in polys_in:
-            all_row_polys += _subdivide_polygon(idx, poly, target_area_m2, voronoi_radius, spacing_m2, seed)
+            all_row_polys += _subdivide_polygon(idx,
+                                                poly,
+                                                target_area_m2,
+                                                voronoi_radius,
+                                                points_per_cell,
+                                                seed)
     elif row['geometry'].type == 'Polygon':
-        all_row_polys += _subdivide_polygon(idx, row['geometry'], target_area_m2, voronoi_radius, spacing_m2, seed)
+        all_row_polys += _subdivide_polygon(idx,
+                                            row['geometry'],
+                                            target_area_m2,
+                                            voronoi_radius,
+                                            points_per_cell,
+                                            seed)
     else:
         print('row contained geometry other than Polygons & MultiPolygons')
     
@@ -458,7 +495,7 @@ def _subdivide_row(idx, row, target_area_m2, voronoi_radius, spacing_m2, seed):
     return row_gdf
 
 
-def subdivide_zones(gdf, zone_id_col=None, target_area_m2=500000, voronoi_radius=15000000, spacing_m2=1000, seed=42):
+def subdivide_zones(gdf, zone_id_col=None, target_area_m2=500000, voronoi_radius=15000000, points_per_cell=None, seed=None):
     '''
     Subdivide polygons in a GDF to a threshold size and return as a new GDF
     
@@ -477,6 +514,10 @@ def subdivide_zones(gdf, zone_id_col=None, target_area_m2=500000, voronoi_radius
         the targe size for the subdivisions
     voronoi_radius : int
         the distance used to approximate infinity in the voronoi function
+    points_per_cell: int
+        The approximate number of points in each cluster
+    seed: int
+        A random number seed for reproducibility
     
     Returns
     -------
@@ -502,11 +543,12 @@ def subdivide_zones(gdf, zone_id_col=None, target_area_m2=500000, voronoi_radius
     # append the returned row_gdf to the list of returned row_gdfs
     for idx, row in gdf_in.iterrows():
         ###print("id:", idx)                # <---print this to narrow down problem geometry
-        row_gdf = _subdivide_row(idx, row,
-                                 target_area_m2 = target_area_m2,
-                                 voronoi_radius = voronoi_radius,
-                                 spacing_m2 = spacing_m2,
-                                 seed = seed,
+        row_gdf = _subdivide_row(idx,
+                                 row,
+                                 target_area_m2,
+                                 voronoi_radius,
+                                 points_per_cell,
+                                 seed,
                                  )
         assert isinstance(row_gdf, gpd.GeoDataFrame), f"{idx} Didn't return a GeoDataFrame"
         row_gdfs.append(row_gdf)
