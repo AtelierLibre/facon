@@ -6,7 +6,7 @@ Facón is an experimental python library for subdividing a GeoDataFrame of admin
 
 Administrative boundaries are typically driven by a need to maintain an approximately equal population in each area while maintaining spatial contiguity (i.e. no gaps between the zones). These constraints can lead to administrative areas that vary greatly in area (m2).
 
-![Greater London boroughs, Ciudad Autónoma de Buenos Aires comunas](/images/London_boroughs_Buenos_Aires_comunas.png "Greater London boroughs, Ciudad Autónoma de Buenos Aires comunas")
+![Greater London boroughs, Ciudad Autónoma de Buenos Aires comunas](https://github.com/AtelierLibre/AtelierLibre.github.io/blob/master/images/London_boroughs_Buenos_Aires_comunas.png) "Greater London boroughs, Ciudad Autónoma de Buenos Aires comunas")
 
 Transport analysis in contrast tends to take a regular (square or hexagonal) grid as its starting point, creating a set of zones of equal area with an equal distance from the centre of one zone to the centre of the next.
 
@@ -16,7 +16,7 @@ These two approaches to subdivisions conflict when, for example, carrying out st
 
 Facón proposes a hybrid solution, creating approximately equal area zones with approximately evenly spaced centres that nevertheless respect the original administrative boundaries. It uses K-Means clustering to define the subdivisions and their centroids and voronoi regions to create the boundaries. It benefits from the fact that K-Means creates a predefined number of clusters (here determined by dividing the area (m2) of the administrative zone by the desired target area (m2) of the new zones) that are approximately circular.
 
-![Greater London boroughs, Ciudad Autónoma de Buenos Aires comunas subdivided](/images/London_boroughs_Buenos_Aires_comunas_subdivided.png "Greater London boroughs, Ciudad Autónoma de Buenos Aires comunas subdivided")
+![Greater London boroughs, Ciudad Autónoma de Buenos Aires comunas subdivided](https://github.com/AtelierLibre/AtelierLibre.github.io/blob/master/images/London_boroughs_Buenos_Aires_comunas_subdivided.png) "Greater London boroughs, Ciudad Autónoma de Buenos Aires comunas subdivided")
 
 ## References
 
