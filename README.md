@@ -1,6 +1,6 @@
 # Facón
 
-Facón is an experimental python library for subdividing a GeoDataFrame of administrative boundaries into a new GeoDataFrame of approximately equal area zones with evenly distributed centres constrained by the boundaries of the original geometries. It is intended to work with projected administrative areas with their coordinates in metres. A target area in metres squared is used to determine how many subdivisions should be created. It was developed in collaboration with Sebastián Anapolsky (@sanapolsky).
+Facón is an experimental python library for subdividing a GeoDataFrame of administrative boundaries into a new GeoDataFrame of approximately equal area zones with evenly distributed centres constrained by the boundaries of the original geometries. It is intended to work with projected administrative areas with their coordinates in metres. A target area in metres squared is used to determine how many subdivisions should be created. It was developed in collaboration with Sebastián Anapolsky [@sanapolsky](https://github.com/sanapolsky/).
 
 ## Working with subdivisions
 
